@@ -5,16 +5,33 @@ require('dotenv').config();
 
 // เพิ่มบรรทัดนี้เพื่อตั้งค่า Thin mode
 oracledb.thin = true;
-oracledb.initOracleClient({
-  libDir: "C:\\oracle\\instantclient_21_12\\instantclient_23_7",
-}); // Windows enable single row
+// oracledb.initOracleClient({
+//   libDir: "C:\\oracle\\instantclient_21_12\\instantclient_23_7",
+// }); // Windows enable single row
 
 
 const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    connectString: process.env.DB_CONNECTION_STRING
+    connectString: process.env.DB_CONNECTION_STRING,
+    poolMin: 4, // จำนวน connection ขั้นต่ำ
+    poolMax: 10, // จำนวน connection สูงสุด
+    poolIncrement: 2, // จำนวน connection ที่จะเพิ่มเมื่อจำเป็น
+
 };
+
+// เพิ่มฟังก์ชันนี้เพื่อจัดการการตั้งค่า client
+async function initClient() {
+    try {
+        oracledb.initOracleClient({
+            libDir: process.env.ORACLE_CLIENT_LIB_DIR,
+        });
+        console.log('Oracle Client initialized successfully.');
+    } catch (err) {
+        console.error('Error initializing Oracle Client:', err.message);
+        throw err;
+    }
+}
 
 async function initialize() {
     try {
@@ -39,6 +56,7 @@ async function getConnection() {
 }
 
 module.exports = {
+    initClient,
     initialize,
     close,
     getConnection
