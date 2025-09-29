@@ -5,8 +5,6 @@ require("dotenv").config();
 // เพิ่มบรรทัดนี้เพื่อตั้งค่า Thin mode
 oracledb.thin = true;
 
-let pool;
-
 // การตั้งค่าการเชื่อมต่อฐานข้อมูล
 
 const dbConfig = {
