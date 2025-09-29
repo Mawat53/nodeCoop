@@ -75,7 +75,7 @@ function getThaiYearMonth() {
 async function calInterateLoan(connection, contractNo) {
   // contractNo ที่นี่จะเป็นสัญญาเป้าหมาย (Destination Contract) ที่ต้องการชำระ
 
-  // SQL ถูกปรับปรุงเพื่อ:
+  // SQL ถูกปรับปรุงเพื่อ: 
   // 1. คำนวณจำนวนวัน (DAY_NUM): TRUNC(SYSDATE) - TRUNC(lastcalint_date)
   // 2. ใช้ NVL(..., 0) เพื่อจัดการกรณีที่ lastcalint_date เป็น NULL (ให้ถือเป็น 0 วัน) หรือ principal_balance เป็น NULL
   const interestSql = `
