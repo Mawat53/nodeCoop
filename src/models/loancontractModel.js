@@ -84,9 +84,9 @@ async function calInterateLoan(connection, contractNo) {
             NVL(TRUNC(SYSDATE) - TRUNC(lastcalint_date), 0) AS DAY_NUM,
             
             -- คำนวณดอกเบี้ยตามสูตร: (ยอดหนี้ * จำนวนวัน * อัตราดอกเบี้ย) / 365
-            NVL(
+            ROUND(NVL(
                 (NVL(principal_balance, 0) * NVL(TRUNC(SYSDATE) - TRUNC(lastcalint_date), 0) * (6 / 100)) / 365
-            , 0) AS calculated_interest
+            , 0), 0) AS calculated_interest
         FROM 
             lncontmaster 
         WHERE 
@@ -201,7 +201,6 @@ async function updateLoanMasterOldContract(connection, contractNo) {
         UPDATE lncontmaster 
         SET 
             INTEREST_RETURN = 0,
-            INTEREST_RETURN = 0
         WHERE trim(loancontract_no) = :contractNo
     `;
   await connection.execute(updateSql, { contractNo: contractNo });
@@ -259,7 +258,7 @@ async function createLoanStatementTransaction(
 ) {
   try {
     // 1. Get the current document number from cmshrlondoccontrol.
-    const refNoSql = `SELECT TRIM(last_documentno) AS LAST_DOCUMENTNO FROM cmshrlondoccontrol WHERE document_code = 'CMSLIPRECEIPT' FOR UPDATE`;
+    const refNoSql = `SELECT TRIM(last_documentno) AS LAST_DOCUMENTNO FROM cmshrlondoccontrol WHERE document_code = 'CMSLIPRECEIPT' FOR UPDATE`; // เช่น 009585
     const refNoResult = await connection.execute(refNoSql, [], {
       outFormat: oracledb.OUT_FORMAT_OBJECT,
     });
@@ -276,8 +275,7 @@ async function createLoanStatementTransaction(
 
     // 🚨 ปรับปรุง 1: จัดการกรณี NULL หรือกรณีที่ Prefix ไม่ตรงกับเดือนปัจจุบัน
     if (
-      !currentFullRefNo ||
-      currentFullRefNo.substring(0, prefixLength) !== currentPrefix
+      !currentFullRefNo 
     ) {
       // 💡 ถ้าเป็นครั้งแรกของเดือน หรือค่าเป็น NULL: รีเซ็ตตัวเลขลำดับเป็น 0
       const docNumberLength = currentFullRefNo
@@ -396,13 +394,25 @@ async function processPaymentLogic(connection, loan, interestReturnAmount) {
     interestPaid = Number(interestPaid) || 0;
 
     // Use the new transaction function to insert the interest payment.
-    interestPaid = Math.min(interestReturnAmount, calculatedInterest);
+    // interestPaid = Math.min(interestReturnAmount, calculatedInterest); // ยอดที่จะชำระดอกเบี้ย
+    interestPaid = Math.min(interestReturnAmount, calculatedInterest); // ยอดที่จะชำระดอกเบี้ย
     const remainingReturn = interestReturnAmount - interestPaid;
 
-    if (remainingReturn > 0) {
-      // If money is left, pay the principal.
+    // 💡 NEW: สร้าง Statement สำหรับการชำระดอกเบี้ยเสมอ (ถ้ามี interestPaid > 0)
+    if (interestPaid > 0) {
+      remarks = `เงินคืนตรงกับสัญญา ${loan.LOANCONTRACT_NO} แต่วันที่คิดดอกเบี้ยไม่ตรง จะนำเงินคืนไปชำระดอกเบี้ย ${interestPaid}`;
+      await createLoanStatementTransaction(
+        connection,
+        loan,
+        "interest",
+        interestPaid
+      );
+    }
+
+    if (remainingReturn > 0) { // ถ้ามีเงินเหลือจากการจ่ายดอกเบี้ย
       principalPaid = remainingReturn;
       remarks = `เงินคืนตรงกับสัญญา ${loan.LOANCONTRACT_NO} แต่วันที่คิดดอกเบี้ยไม่ตรง จะนำเงินคืนไปชำระดอกเบี้ย ${interestPaid} และที่เหลือ ${principalPaid} จะนำไปชำระเงินต้น`;
+      remarks += ` และที่เหลือ ${principalPaid} จะนำไปชำระเงินต้น`; // ต่อข้อความเดิม
 
       // Use the new transaction function to insert the principal payment.
       await createLoanStatementTransaction(
@@ -461,8 +471,10 @@ async function processInterestReturn() {
     //         AND sl.slip_status = 1
     //         AND sl.member_no = '023999' //fortest
     //     `;
-    const selectSql = `select member_no, TRIM(loancontract_no) as LOANCONTRACT_NO, interest_return, 'สป6802227' as newcont_no, 691000 as newprincipal_balance 
-from lncontmaster where member_no = '023999' and TRIM(loancontract_no) = 'สป6700486' `;
+    const selectSql = `select a.member_no as MEMBER_NO , TRIM(a.loancontract_no) as LOANCONTRACT_NO, a.interest_return as INTEREST_RETURN, 
+TRIM( b.loancontract_no ) as newcont_no, b.principal_balance as newprincipal_balance 
+from (select member_no, loancontract_no, principal_balance, interest_return from lncontmaster where trim(loancontract_no) ='สป6700486' ) a
+join (select member_no, loancontract_no, principal_balance from lncontmaster where trim(loancontract_no) ='สป6802227' ) b on a.member_no = b.member_no `;
     const result = await connection.execute(selectSql, [], {
       outFormat: oracledb.OUT_FORMAT_OBJECT,
     });
@@ -677,7 +689,7 @@ from lncontmaster where member_no = '023999' and TRIM(loancontract_no) = 'สป
         MEMBER_NO: loan.MEMBER_NO,
         LOANCONTRACT_NO: loan.LOANCONTRACT_NO,
         PRINCIPAL_BALANCE:
-          principalBalanceMap.get(loan.LOANCONTRACT_NO) || null,
+          principalBalanceMap.get(loan.LOANCONTRACT_NO) || 0,
         INTEREST_RETURN: loan.INTEREST_RETURN,
         NEWCONT_NO: targetNewContNo,
         NEWPRINCIPAL_BALANCE: targetNewPrincipalBalance,

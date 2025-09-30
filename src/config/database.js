@@ -5,8 +5,6 @@ require("dotenv").config();
 // เพิ่มบรรทัดนี้เพื่อตั้งค่า Thin mode
 oracledb.thin = true;
 
-let pool;
-
 // การตั้งค่าการเชื่อมต่อฐานข้อมูล
 
 const dbConfig = {
@@ -17,6 +15,8 @@ const dbConfig = {
   poolMax: 10, // จำนวน connection สูงสุด
   poolIncrement: 2, // จำนวน connection ที่จะเพิ่มเมื่อจำเป็น
 };
+
+let pool; // <--- ตัวแปรสำหรับเก็บ Connection Poll
 
 // เพิ่มฟังก์ชันนี้เพื่อจัดการการตั้งค่า client
 async function initClient() {
@@ -57,6 +57,15 @@ function getPool() {
   }
   return pool;
 }
+
+function getPool() {
+    // ฟังก์ชันนี้ให้ Pool ที่ถูกสร้างแล้วนำไปใช้ใน Routes/Services
+    if (!pool) {
+        throw new Error("Database connection pool has not been initialized.");
+    }
+    return pool;
+}
+
 
 async function close() {
   try {
