@@ -198,6 +198,7 @@ async function updateLoanMasterOldContract(connection, contractNo) {
         UPDATE lncontmaster 
         SET 
             INTEREST_RETURN = 0,
+            INTEREST_RETURN = 0
         WHERE trim(loancontract_no) = :contractNo
     `;
   await connection.execute(updateSql, { contractNo: contractNo });
