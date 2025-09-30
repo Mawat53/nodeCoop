@@ -95,6 +95,7 @@ async function calInterateLoan(connection, contractNo) {
 
     // 💡 วางตรงนี้เพื่อดูว่าสัญญาเป้าหมายเป็น 'undefined' หรือมีอักขระแปลกปลอมหรือไม่
     console.log("[DEBUG: CAL INT] Calculating interest for:", contractNo); 
+    // console.log("[DEBUG: CAL INT] Calculating interest for:", contractNo); 
 
   // กำหนดรูปแบบการส่งออกเป็น Object เพื่อการเข้าถึงข้อมูลที่ง่ายขึ้น
   const result = await connection.execute(
@@ -184,6 +185,8 @@ async function insertLoanStatement(
   // 💡 วางตรงนี้เพื่อตรวจสอบค่า Bind Data ทั้งหมด
     console.log("[DEBUG: INSERT BIND DATA] Contract:", loanData.LOANCONTRACT_NO);
     console.log("Bind Data:", JSON.stringify(bindData, null, 2)); 
+    // console.log("[DEBUG: INSERT BIND DATA] Contract:", loanData.LOANCONTRACT_NO);
+    // console.log("Bind Data:", JSON.stringify(bindData, null, 2)); 
 
   await connection.execute(insertSql, bindData);
 }
@@ -304,16 +307,18 @@ async function createLoanStatementTransaction(
       loanData,
       paymentType,
       amount,
-      newRefNo.toString()
+      newRefNo // newRefNo is already a string
     );
 
     // 5. Update the document counter.
     const updateDocNoSql = `
             UPDATE cmshrlondoccontrol
             SET last_documentno = :newLastDoc
+            SET last_documentno = :newRefNo
             WHERE document_code = 'CMSLIPRECEIPT'
         `;
     await connection.execute(updateDocNoSql, { newLastDoc });
+    await connection.execute(updateDocNoSql, { newRefNo: newRefNo });
   } catch (error) {
     console.error("Error in createLoanStatementTransaction:", error);
     throw error; // Re-throw the error to be handled by the main function's catch block.
